@@ -63,35 +63,41 @@ pub mod sol_forge {
     pub fn accrue_fee(ctx: Context<AccrueFee>, amount_lamports: u64) -> Result<()> {
         require!(amount_lamports > 0, ErrorCode::AmountTooSmall);
 
-        let vault = &mut ctx.accounts.vault;
+        // Grab account infos and bump BEFORE mutable borrow
+        let vault_info = ctx.accounts.vault.to_account_info();
+        let payer_info = ctx.accounts.payer.to_account_info();
+        let incinerator_info = ctx.accounts.incinerator.to_account_info();
+        let system_info = ctx.accounts.system_program.to_account_info();
+        let bump = ctx.accounts.vault.bump;
+        let burn_bps = ctx.accounts.vault.burn_percentage_bps;
 
         // Transfer SOL from payer → vault PDA
         system_program::transfer(
             CpiContext::new(
-                ctx.accounts.system_program.to_account_info(),
+                system_info.clone(),
                 system_program::Transfer {
-                    from: ctx.accounts.payer.to_account_info(),
-                    to: ctx.accounts.vault.to_account_info(),
+                    from: payer_info,
+                    to: vault_info.clone(),
                 },
             ),
             amount_lamports,
         )?;
 
         let burn_amount =
-            ((amount_lamports as u128) * vault.burn_percentage_bps as u128 / 10_000) as u64;
+            ((amount_lamports as u128) * burn_bps as u128 / 10_000) as u64;
         let net_amount = amount_lamports.saturating_sub(burn_amount);
 
         // Auto-burn portion → incinerator
         if burn_amount > 0 {
-            let seeds = &[b"vault".as_ref(), &[vault.bump]];
+            let seeds = &[b"vault".as_ref(), &[bump]];
             let signer_seeds = &[&seeds[..]];
 
             system_program::transfer(
                 CpiContext::new_with_signer(
-                    ctx.accounts.system_program.to_account_info(),
+                    system_info,
                     system_program::Transfer {
-                        from: ctx.accounts.vault.to_account_info(),
-                        to: ctx.accounts.incinerator.to_account_info(),
+                        from: vault_info,
+                        to: incinerator_info,
                     },
                     signer_seeds,
                 ),
@@ -99,6 +105,7 @@ pub mod sol_forge {
             )?;
         }
 
+        let vault = &mut ctx.accounts.vault;
         vault.total_accrued = vault
             .total_accrued
             .checked_add(net_amount)
@@ -125,22 +132,28 @@ pub mod sol_forge {
             ErrorCode::InsufficientBalance
         );
 
-        let vault = &mut ctx.accounts.vault;
-        let seeds = &[b"vault".as_ref(), &[vault.bump]];
+        // Grab infos before mutable borrow
+        let vault_info = ctx.accounts.vault.to_account_info();
+        let incinerator_info = ctx.accounts.incinerator.to_account_info();
+        let system_info = ctx.accounts.system_program.to_account_info();
+        let bump = ctx.accounts.vault.bump;
+
+        let seeds = &[b"vault".as_ref(), &[bump]];
         let signer = &[&seeds[..]];
 
         system_program::transfer(
             CpiContext::new_with_signer(
-                ctx.accounts.system_program.to_account_info(),
+                system_info,
                 system_program::Transfer {
-                    from: ctx.accounts.vault.to_account_info(),
-                    to: ctx.accounts.incinerator.to_account_info(),
+                    from: vault_info,
+                    to: incinerator_info,
                 },
                 signer,
             ),
             amount_lamports,
         )?;
 
+        let vault = &mut ctx.accounts.vault;
         vault.total_accrued = vault
             .total_accrued
             .checked_sub(amount_lamports)
@@ -167,22 +180,28 @@ pub mod sol_forge {
             ErrorCode::InsufficientBalance
         );
 
-        let vault = &mut ctx.accounts.vault;
-        let seeds = &[b"vault".as_ref(), &[vault.bump]];
+        // Grab infos before mutable borrow
+        let vault_info = ctx.accounts.vault.to_account_info();
+        let recipient_info = ctx.accounts.recipient.to_account_info();
+        let system_info = ctx.accounts.system_program.to_account_info();
+        let bump = ctx.accounts.vault.bump;
+
+        let seeds = &[b"vault".as_ref(), &[bump]];
         let signer = &[&seeds[..]];
 
         system_program::transfer(
             CpiContext::new_with_signer(
-                ctx.accounts.system_program.to_account_info(),
+                system_info,
                 system_program::Transfer {
-                    from: ctx.accounts.vault.to_account_info(),
-                    to: ctx.accounts.recipient.to_account_info(),
+                    from: vault_info,
+                    to: recipient_info,
                 },
                 signer,
             ),
             amount_lamports,
         )?;
 
+        let vault = &mut ctx.accounts.vault;
         vault.total_accrued = vault
             .total_accrued
             .checked_sub(amount_lamports)
