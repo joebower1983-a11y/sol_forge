@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SolForge — Vault Dashboard</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#0a0e17;--card:#131a2b;--border:#1e2a42;--accent:#00e5a0;--accent2:#7c5cff;--text:#e0e6f0;--dim:#6b7a99;--danger:#ff4d6a;--warn:#ffa726;--input-bg:#0d1220;--radius:12px}
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;line-height:1.5}
+a{color:var(--accent)}
+header{display:flex;align-items:center;justify-content:space-between;padding:1rem 2rem;border-bottom:1px solid var(--border);backdrop-filter:blur(10px);position:sticky;top:0;z-index:10;background:rgba(10,14,23,.85)}
+.logo{font-size:1.4rem;font-weight:700;letter-spacing:-.02em}
+.logo span{color:var(--accent)}
+#connectBtn{background:var(--accent);color:#0a0e17;border:none;padding:.55rem 1.4rem;border-radius:8px;font-weight:600;cursor:pointer;font-size:.9rem;transition:opacity .15s}
+#connectBtn:hover{opacity:.85}
+#connectBtn.connected{background:var(--accent2);color:#fff}
+.container{max-width:1100px;margin:0 auto;padding:1.5rem}
+.status-bar{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;margin-bottom:1.5rem}
+.stat{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:1.1rem 1.3rem}
+.stat-label{font-size:.75rem;text-transform:uppercase;letter-spacing:.06em;color:var(--dim);margin-bottom:.3rem}
+.stat-value{font-size:1.35rem;font-weight:700;font-variant-numeric:tabular-nums}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:1.2rem}
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:1.4rem}
+.card h2{font-size:1rem;margin-bottom:1rem;display:flex;align-items:center;gap:.5rem}
+.card h2 .icon{width:22px;height:22px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;font-size:.8rem}
+.icon-init{background:#00e5a022;color:var(--accent)}
+.icon-fee{background:#7c5cff22;color:var(--accent2)}
+.icon-burn{background:#ff4d6a22;color:var(--danger)}
+.icon-dist{background:#ffa72622;color:var(--warn)}
+.icon-gov{background:#00b0ff22;color:#00b0ff}
+label{display:block;font-size:.78rem;color:var(--dim);margin-bottom:.3rem;margin-top:.8rem}
+label:first-of-type{margin-top:0}
+input,select{width:100%;background:var(--input-bg);border:1px solid var(--border);color:var(--text);padding:.55rem .75rem;border-radius:8px;font-size:.88rem;outline:none;transition:border-color .15s}
+input:focus{border-color:var(--accent)}
+.btn{display:inline-flex;align-items:center;justify-content:center;padding:.55rem 1.2rem;border:none;border-radius:8px;font-weight:600;font-size:.85rem;cursor:pointer;transition:opacity .15s;margin-top:1rem;width:100%}
+.btn:hover{opacity:.85}
+.btn-primary{background:var(--accent);color:#0a0e17}
+.btn-purple{background:var(--accent2);color:#fff}
+.btn-danger{background:var(--danger);color:#fff}
+.btn-warn{background:var(--warn);color:#0a0e17}
+.btn-row{display:flex;gap:.6rem}
+.btn-row .btn{flex:1}
+.proposal-info{background:var(--input-bg);border:1px solid var(--border);border-radius:8px;padding:.9rem;margin-top:1rem;font-size:.82rem}
+.proposal-info .dim{color:var(--dim)}
+#toast{position:fixed;bottom:1.5rem;right:1.5rem;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:.8rem 1.2rem;font-size:.85rem;transform:translateY(120%);opacity:0;transition:all .3s;z-index:100;max-width:380px}
+#toast.show{transform:translateY(0);opacity:1}
+#toast.error{border-color:var(--danger)}
+.network-badge{font-size:.7rem;background:var(--accent2);color:#fff;padding:.15rem .5rem;border-radius:4px;margin-left:.5rem}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Sol<span>Forge</span> <span class="network-badge">devnet</span></div>
+  <button id="connectBtn" onclick="connectWallet()">Connect Wallet</button>
+</header>
+
+<div class="container">
+  <!-- Vault Status -->
+  <div class="status-bar" id="statusBar">
+    <div class="stat"><div class="stat-label">Vault Balance</div><div class="stat-value" id="vBalance">—</div></div>
+    <div class="stat"><div class="stat-label">Total Accrued</div><div class="stat-value" id="vAccrued">—</div></div>
+    <div class="stat"><div class="stat-label">Fee Rate</div><div class="stat-value" id="vFee">—</div></div>
+    <div class="stat"><div class="stat-label">Burn %</div><div class="stat-value" id="vBurn">—</div></div>
+    <div class="stat"><div class="stat-label">Timelock Delay</div><div class="stat-value" id="vDelay">—</div></div>
+  </div>
+
+  <div class="grid">
+    <!-- Initialize Vault -->
+    <div class="card">
+      <h2><span class="icon icon-init">⚡</span> Initialize Vault</h2>
+      <label>Fee Rate (bps, 0–10000)</label>
+      <input id="initFee" type="number" placeholder="e.g. 500 = 5%">
+      <label>Burn % (bps, 0–10000)</label>
+      <input id="initBurn" type="number" placeholder="e.g. 2000 = 20%">
+      <label>Timelock Delay (seconds, optional)</label>
+      <input id="initDelay" type="number" placeholder="86400 (default 24h)">
+      <button class="btn btn-primary" onclick="initializeVault()">Initialize Vault</button>
+    </div>
+
+    <!-- Accrue Fee -->
+    <div class="card">
+      <h2><span class="icon icon-fee">💰</span> Accrue Fee</h2>
+      <label>Amount (SOL)</label>
+      <input id="feeAmount" type="number" step="0.001" placeholder="e.g. 1.5">
+      <button class="btn btn-purple" onclick="accrueFee()">Pay Fee into Vault</button>
+    </div>
+
+    <!-- Burn SOL -->
+    <div class="card">
+      <h2><span class="icon icon-burn">🔥</span> Burn SOL</h2>
+      <label>Amount (SOL, min 0.001)</label>
+      <input id="burnAmount" type="number" step="0.001" placeholder="e.g. 0.5">
+      <button class="btn btn-danger" onclick="burnSol()">Burn from Vault</button>
+    </div>
+
+    <!-- Distribute Rewards -->
+    <div class="card">
+      <h2><span class="icon icon-dist">🎁</span> Distribute Rewards</h2>
+      <label>Recipient Address</label>
+      <input id="distRecipient" type="text" placeholder="Solana address">
+      <label>Amount (SOL, min 0.001)</label>
+      <input id="distAmount" type="number" step="0.001" placeholder="e.g. 1.0">
+      <button class="btn btn-warn" onclick="distributeRewards()">Send Rewards</button>
+    </div>
+
+    <!-- Governance -->
+    <div class="card" style="grid-column:1/-1">
+      <h2><span class="icon icon-gov">🏛</span> Governance — Timelocked Parameter Updates</h2>
+      <div class="grid" style="gap:1rem">
+        <div>
+          <label>New Burn % (bps, optional)</label>
+          <input id="govBurn" type="number" placeholder="Leave empty to skip">
+          <label>New Delay (seconds, optional)</label>
+          <input id="govDelay" type="number" placeholder="Leave empty to skip">
+          <button class="btn btn-purple" onclick="proposeUpdate()">Propose Update</button>
+        </div>
+        <div>
+          <div class="proposal-info">
+            <div class="dim">Pending Proposal</div>
+            <div id="proposalBurn">Burn: —</div>
+            <div id="proposalDelay">Delay: —</div>
+            <div id="proposalRelease">Executable at: —</div>
+          </div>
+          <div class="btn-row">
+            <button class="btn btn-primary" onclick="executeUpdate()">Execute</button>
+            <button class="btn btn-danger" onclick="cancelProposal()">Cancel</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script type="module">
+import { Buffer } from 'https://esm.sh/buffer@6.0.3';
+window.Buffer = Buffer;
+</script>
+<script src="https://unpkg.com/@solana/web3.js@1.95.3/lib/index.iife.min.js"></script>
+<script src="https://unpkg.com/@coral-xyz/anchor@0.30.1/dist/browser/anchor.min.js"></script>
+<script>
+const PROGRAM_ID = new solanaWeb3.PublicKey('F1aLM6gPxEmoGRCT84ZYTSWAgiaaf3m4JHabr4nkBiHo');
+const INCINERATOR = new solanaWeb3.PublicKey('1nc1nerator11111111111111111111111111111111');
+const LAMPORTS = 1_000_000_000;
+const VAULT_SEED = [Buffer.from('vault')];
+
+let connection, provider, program, vaultPda, vaultBump, wallet;
+
+const IDL = {
+  version: "0.1.0",
+  name: "sol_forge",
+  instructions: [
+    {
+      name: "initializeVault",
+      accounts: [
+        { name: "vault", isMut: true, isSigner: false },
+        { name: "authority", isMut: true, isSigner: true },
+        { name: "systemProgram", isMut: false, isSigner: false }
+      ],
+      args: [
+        { name: "feeBps", type: "u16" },
+        { name: "burnBps", type: "u16" },
+        { name: "delaySeconds", type: { option: "i64" } }
+      ]
+    },
+    {
+      name: "accrueFee",
+      accounts: [
+        { name: "vault", isMut: true, isSigner: false },
+        { name: "payer", isMut: true, isSigner: true },
+        { name: "incinerator", isMut: true, isSigner: false },
+        { name: "systemProgram", isMut: false, isSigner: false }
+      ],
+      args: [{ name: "amountLamports", type: "u64" }]
+    },
+    {
+      name: "burnSol",
+      accounts: [
+        { name: "vault", isMut: true, isSigner: false },
+        { name: "authority", isMut: true, isSigner: true },
+        { name: "incinerator", isMut: true, isSigner: false },
+        { name: "systemProgram", isMut: false, isSigner: false }
+      ],
+      args: [{ name: "amountLamports", type: "u64" }]
+    },
+    {
+      name: "distributeRewards",
+      accounts: [
+        { name: "vault", isMut: true, isSigner: false },
+        { name: "authority", isMut: true, isSigner: true },
+        { name: "recipient", isMut: true, isSigner: false },
+        { name: "systemProgram", isMut: false, isSigner: false }
+      ],
+      args: [{ name: "amountLamports", type: "u64" }]
+    },
+    {
+      name: "proposeParameterUpdate",
+      accounts: [
+        { name: "vault", isMut: true, isSigner: false },
+        { name: "authority", isMut: false, isSigner: true }
+      ],
+      args: [
+        { name: "newBurnBps", type: { option: "u16" } },
+        { name: "newDelaySecs", type: { option: "i64" } }
+      ]
+    },
+    {
+      name: "executeParameterUpdate",
+      accounts: [
+        { name: "vault", isMut: true, isSigner: false },
+        { name: "authority", isMut: false, isSigner: true }
+      ],
+      args: []
+    },
+    {
+      name: "cancelParameterProposal",
+      accounts: [
+        { name: "vault", isMut: true, isSigner: false },
+        { name: "authority", isMut: false, isSigner: true }
+      ],
+      args: []
+    }
+  ],
+  accounts: [
+    {
+      name: "Vault",
+      type: {
+        kind: "struct",
+        fields: [
+          { name: "authority", type: "publicKey" },
+          { name: "totalAccrued", type: "u64" },
+          { name: "feeBasisPoints", type: "u16" },
+          { name: "burnPercentageBps", type: "u16" },
+          { name: "delaySeconds", type: "i64" },
+          { name: "bump", type: "u8" },
+          { name: "pendingBurnPercentageBps", type: { option: "u16" } },
+          { name: "pendingDelaySeconds", type: { option: "i64" } },
+          { name: "pendingReleaseTime", type: "i64" }
+        ]
+      }
+    }
+  ]
+};
+
+function toast(msg, isError) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = isError ? 'show error' : 'show';
+  setTimeout(() => t.className = '', 4000);
+}
+
+function solStr(lamports) {
+  return (Number(lamports) / LAMPORTS).toFixed(4) + ' SOL';
+}
+
+function bpsStr(bps) {
+  return (bps / 100).toFixed(2) + '%';
+}
+
+async function initAnchor() {
+  connection = new solanaWeb3.Connection('https://api.devnet.solana.com', 'confirmed');
+  [vaultPda, vaultBump] = solanaWeb3.PublicKey.findProgramAddressSync(VAULT_SEED, PROGRAM_ID);
+}
+
+async function setupProgram() {
+  const anchorProvider = new anchor.AnchorProvider(connection, wallet, { commitment: 'confirmed' });
+  program = new anchor.Program(IDL, PROGRAM_ID, anchorProvider);
+}
+
+window.connectWallet = async function() {
+  try {
+    if (!window.solana?.isPhantom) { toast('Phantom wallet not found!', true); return; }
+    const resp = await window.solana.connect();
+    wallet = window.solana;
+    document.getElementById('connectBtn').textContent = resp.publicKey.toBase58().slice(0,4) + '...' + resp.publicKey.toBase58().slice(-4);
+    document.getElementById('connectBtn').classList.add('connected');
+    await setupProgram();
+    await refreshVault();
+    toast('Wallet connected');
+  } catch(e) { toast(e.message, true); }
+};
+
+async function refreshVault() {
+  try {
+    const info = await connection.getAccountInfo(vaultPda);
+    if (!info) {
+      document.getElementById('vBalance').textContent = 'Not initialized';
+      return;
+    }
+    const vault = await program.account.vault.fetch(vaultPda);
+    const balance = await connection.getBalance(vaultPda);
+    document.getElementById('vBalance').textContent = solStr(balance);
+    document.getElementById('vAccrued').textContent = solStr(vault.totalAccrued);
+    document.getElementById('vFee').textContent = bpsStr(vault.feeBasisPoints);
+    document.getElementById('vBurn').textContent = bpsStr(vault.burnPercentageBps);
+    document.getElementById('vDelay').textContent = vault.delaySeconds.toNumber() + 's';
+
+    // Governance
+    const hasPending = vault.pendingBurnPercentageBps !== null || vault.pendingDelaySeconds !== null;
+    document.getElementById('proposalBurn').textContent = 'Burn: ' + (vault.pendingBurnPercentageBps !== null ? bpsStr(vault.pendingBurnPercentageBps) : '—');
+    document.getElementById('proposalDelay').textContent = 'Delay: ' + (vault.pendingDelaySeconds !== null ? vault.pendingDelaySeconds.toNumber() + 's' : '—');
+    document.getElementById('proposalRelease').textContent = 'Executable at: ' + (hasPending ? new Date(vault.pendingReleaseTime.toNumber() * 1000).toLocaleString() : '—');
+  } catch(e) { console.warn('Vault fetch:', e); }
+}
+
+window.initializeVault = async function() {
+  try {
+    if (!program) { toast('Connect wallet first', true); return; }
+    const feeBps = parseInt(document.getElementById('initFee').value);
+    const burnBps = parseInt(document.getElementById('initBurn').value);
+    const delayVal = document.getElementById('initDelay').value;
+    const delay = delayVal ? new anchor.BN(parseInt(delayVal)) : null;
+    await program.methods.initializeVault(feeBps, burnBps, delay)
+      .accounts({ vault: vaultPda, authority: wallet.publicKey, systemProgram: solanaWeb3.SystemProgram.programId })
+      .rpc();
+    toast('Vault initialized!');
+    await refreshVault();
+  } catch(e) { toast(e.message, true); }
+};
+
+window.accrueFee = async function() {
+  try {
+    if (!program) { toast('Connect wallet first', true); return; }
+    const sol = parseFloat(document.getElementById('feeAmount').value);
+    const lamports = new anchor.BN(Math.round(sol * LAMPORTS));
+    await program.methods.accrueFee(lamports)
+      .accounts({ vault: vaultPda, payer: wallet.publicKey, incinerator: INCINERATOR, systemProgram: solanaWeb3.SystemProgram.programId })
+      .rpc();
+    toast('Fee accrued!');
+    await refreshVault();
+  } catch(e) { toast(e.message, true); }
+};
+
+window.burnSol = async function() {
+  try {
+    if (!program) { toast('Connect wallet first', true); return; }
+    const sol = parseFloat(document.getElementById('burnAmount').value);
+    const lamports = new anchor.BN(Math.round(sol * LAMPORTS));
+    await program.methods.burnSol(lamports)
+      .accounts({ vault: vaultPda, authority: wallet.publicKey, incinerator: INCINERATOR, systemProgram: solanaWeb3.SystemProgram.programId })
+      .rpc();
+    toast('SOL burned!');
+    await refreshVault();
+  } catch(e) { toast(e.message, true); }
+};
+
+window.distributeRewards = async function() {
+  try {
+    if (!program) { toast('Connect wallet first', true); return; }
+    const recipient = new solanaWeb3.PublicKey(document.getElementById('distRecipient').value);
+    const sol = parseFloat(document.getElementById('distAmount').value);
+    const lamports = new anchor.BN(Math.round(sol * LAMPORTS));
+    await program.methods.distributeRewards(lamports)
+      .accounts({ vault: vaultPda, authority: wallet.publicKey, recipient, systemProgram: solanaWeb3.SystemProgram.programId })
+      .rpc();
+    toast('Rewards distributed!');
+    await refreshVault();
+  } catch(e) { toast(e.message, true); }
+};
+
+window.proposeUpdate = async function() {
+  try {
+    if (!program) { toast('Connect wallet first', true); return; }
+    const burnVal = document.getElementById('govBurn').value;
+    const delayVal = document.getElementById('govDelay').value;
+    const newBurn = burnVal ? parseInt(burnVal) : null;
+    const newDelay = delayVal ? new anchor.BN(parseInt(delayVal)) : null;
+    await program.methods.proposeParameterUpdate(newBurn, newDelay)
+      .accounts({ vault: vaultPda, authority: wallet.publicKey })
+      .rpc();
+    toast('Proposal submitted!');
+    await refreshVault();
+  } catch(e) { toast(e.message, true); }
+};
+
+window.executeUpdate = async function() {
+  try {
+    if (!program) { toast('Connect wallet first', true); return; }
+    await program.methods.executeParameterUpdate()
+      .accounts({ vault: vaultPda, authority: wallet.publicKey })
+      .rpc();
+    toast('Update executed!');
+    await refreshVault();
+  } catch(e) { toast(e.message, true); }
+};
+
+window.cancelProposal = async function() {
+  try {
+    if (!program) { toast('Connect wallet first', true); return; }
+    await program.methods.cancelParameterProposal()
+      .accounts({ vault: vaultPda, authority: wallet.publicKey })
+      .rpc();
+    toast('Proposal cancelled');
+    await refreshVault();
+  } catch(e) { toast(e.message, true); }
+};
+
+initAnchor();
+</script>
+</body>
+</html>
