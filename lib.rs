@@ -1,10 +1,15 @@
 use anchor_lang::prelude::*;
 use anchor_lang::system_program;
-use anchor_lang::solana_program::clock::Clock;
 
 declare_id!("F1aLM6gPxEmoGRCT84ZYTSWAgiaaf3m4JHabr4nkBiHo");
 
-pub const INCINERATOR: Pubkey = pubkey!("1nc1nerator11111111111111111111111111111111");
+// Solana's native incinerator address (1nc1nerator11111111111111111111111111111111)
+pub const INCINERATOR: Pubkey = Pubkey::new_from_array([
+    0x00, 0x33, 0x90, 0x72, 0x8d, 0x34, 0x11, 0x60,
+    0x79, 0xbd, 0xc9, 0x11, 0xbf, 0xff, 0x00, 0xdb,
+    0xd4, 0x4d, 0x2e, 0xcd, 0xcc, 0xf7, 0x9c, 0xa6,
+    0xe1, 0x00, 0x38, 0xe1, 0x00, 0x00, 0x00, 0x00,
+]);
 pub const DEFAULT_DELAY_SECONDS: i64 = 86_400;       // 24 hours
 pub const MIN_DELAY_SECONDS: i64 = 3_600;            // 1 hour
 pub const MAX_DELAY_SECONDS: i64 = 604_800;          // 7 days
