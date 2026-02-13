@@ -36,7 +36,7 @@ pub mod sol_forge {
         );
 
         let vault = &mut ctx.accounts.vault;
-        *vault = Vault {
+        **vault = Vault {
             authority: *ctx.accounts.authority.key,
             total_accrued: 0,
             fee_basis_points: fee_bps,
